@@ -11,6 +11,8 @@ pub fn bundled_agents() -> Vec<(&'static str, &'static str)> {
         ("architect", include_str!("../../../agents/architect/agent.toml")),
         ("assistant", include_str!("../../../agents/assistant/agent.toml")),
         ("coder", include_str!("../../../agents/coder/agent.toml")),
+        ("coderGem", include_str!("../../../agents/coderGem/agent.toml")),
+        ("coderMoonShot", include_str!("../../../agents/coderMoonShot/agent.toml")),
         ("code-reviewer", include_str!("../../../agents/code-reviewer/agent.toml")),
         ("customer-support", include_str!("../../../agents/customer-support/agent.toml")),
         ("data-scientist", include_str!("../../../agents/data-scientist/agent.toml")),

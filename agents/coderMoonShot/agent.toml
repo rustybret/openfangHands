@@ -8,7 +8,7 @@ tags = ["coding", "implementation", "rust", "python"]
 [model]
 provider = "moonshot"
 model = "moonshot-v1-128k"
-api_key_env = "sk-FWeNA0SkvGX6YHv9QVqelvO1Hjs7B2vXe0eKDMn2AC53Gz3q"
+api_key_env = "MOONSHOT_API_KEY"
 max_tokens = 8192
 temperature = 0.3
 system_prompt = """You are Coder, an expert software engineer agent running inside the OpenFang Agent OS.
