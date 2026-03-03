@@ -541,14 +541,14 @@ fn sanitize_telegram_html(text: &str) -> String {
     ];
 
     let mut result = String::with_capacity(text.len());
-    let bytes = text.as_bytes();
-    let mut i = 0;
+    let mut chars = text.char_indices().peekable();
 
-    while i < bytes.len() {
-        if bytes[i] == b'<' {
+    while let Some(&(i, ch)) = chars.peek() {
+        if ch == '<' {
             // Try to parse an HTML tag
-            if let Some(end) = text[i..].find('>') {
-                let tag_content = &text[i + 1..i + end]; // content between < and >
+            if let Some(end_offset) = text[i..].find('>') {
+                let tag_end = i + end_offset;
+                let tag_content = &text[i + 1..tag_end]; // content between < and >
                 let tag_name = tag_content
                     .trim_start_matches('/')
                     .split(|c: char| c.is_whitespace() || c == '/' || c == '>')
@@ -558,22 +558,28 @@ fn sanitize_telegram_html(text: &str) -> String {
 
                 if !tag_name.is_empty() && ALLOWED.contains(&tag_name.as_str()) {
                     // Allowed tag — keep as-is
-                    result.push_str(&text[i..i + end + 1]);
+                    result.push_str(&text[i..tag_end + 1]);
                 } else {
                     // Unknown tag — escape both brackets
                     result.push_str("&lt;");
-                    result.push_str(&text[i + 1..i + end]);
+                    result.push_str(tag_content);
                     result.push_str("&gt;");
                 }
-                i += end + 1;
+                // Advance past the whole tag
+                while let Some(&(j, _)) = chars.peek() {
+                    chars.next();
+                    if j >= tag_end {
+                        break;
+                    }
+                }
             } else {
                 // No closing > — escape the lone <
                 result.push_str("&lt;");
-                i += 1;
+                chars.next();
             }
         } else {
-            result.push(text[i..].chars().next().unwrap());
-            i += text[i..].chars().next().unwrap().len_utf8();
+            result.push(ch);
+            chars.next();
         }
     }
 

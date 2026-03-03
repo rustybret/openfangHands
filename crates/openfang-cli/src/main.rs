@@ -2099,7 +2099,20 @@ decay_rate = 0.05
             all_ok = false;
         }
 
-        // --- Check 4: Port 4200 availability ---
+        // --- Check 4: Port availability ---
+        // Read api_listen from config (default: 127.0.0.1:4200)
+        let api_listen = {
+            let cfg_path = openfang_dir.join("config.toml");
+            if cfg_path.exists() {
+                std::fs::read_to_string(&cfg_path)
+                    .ok()
+                    .and_then(|s| toml::from_str::<openfang_types::config::KernelConfig>(&s).ok())
+                    .map(|c| c.api_listen)
+                    .unwrap_or_else(|| "127.0.0.1:4200".to_string())
+            } else {
+                "127.0.0.1:4200".to_string()
+            }
+        };
         if !json {
             println!();
         }
@@ -2115,19 +2128,24 @@ decay_rate = 0.05
             }
             checks.push(serde_json::json!({"check": "daemon", "status": "warn"}));
 
-            // Check if port 4200 is available
-            match std::net::TcpListener::bind("127.0.0.1:4200") {
+            // Check if the configured port is available
+            let bind_addr = if api_listen.starts_with("0.0.0.0") {
+                api_listen.replacen("0.0.0.0", "127.0.0.1", 1)
+            } else {
+                api_listen.clone()
+            };
+            match std::net::TcpListener::bind(&bind_addr) {
                 Ok(_) => {
                     if !json {
-                        ui::check_ok("Port 4200 is available");
+                        ui::check_ok(&format!("Port {api_listen} is available"));
                     }
-                    checks.push(serde_json::json!({"check": "port_4200", "status": "ok"}));
+                    checks.push(serde_json::json!({"check": "port", "status": "ok", "address": api_listen}));
                 }
                 Err(_) => {
                     if !json {
-                        ui::check_warn("Port 4200 is in use by another process");
+                        ui::check_warn(&format!("Port {api_listen} is in use by another process"));
                     }
-                    checks.push(serde_json::json!({"check": "port_4200", "status": "warn"}));
+                    checks.push(serde_json::json!({"check": "port", "status": "warn", "address": api_listen}));
                 }
             }
         }
