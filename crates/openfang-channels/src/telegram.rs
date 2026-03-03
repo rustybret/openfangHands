@@ -79,8 +79,13 @@ impl TelegramAdapter {
             self.token.as_str()
         );
 
+        // Sanitize: strip unsupported HTML tags so Telegram doesn't reject with 400.
+        // Telegram only allows: b, i, u, s, tg-spoiler, a, code, pre, blockquote.
+        // Any other tag (e.g. <name>, <thinking>) causes a 400 Bad Request.
+        let sanitized = sanitize_telegram_html(text);
+
         // Telegram has a 4096 character limit per message — split if needed
-        let chunks = split_message(text, 4096);
+        let chunks = split_message(&sanitized, 4096);
         for chunk in chunks {
             let body = serde_json::json!({
                 "chat_id": chat_id,
@@ -522,6 +527,57 @@ fn parse_telegram_update(
 /// Calculate exponential backoff capped at MAX_BACKOFF.
 pub fn calculate_backoff(current: Duration) -> Duration {
     (current * 2).min(MAX_BACKOFF)
+}
+
+/// Sanitize text for Telegram HTML parse mode.
+///
+/// Escapes angle brackets that are NOT part of Telegram-allowed HTML tags.
+/// Allowed tags: b, i, u, s, tg-spoiler, a, code, pre, blockquote.
+/// Everything else (e.g. `<name>`, `<thinking>`) gets escaped to `&lt;...&gt;`.
+fn sanitize_telegram_html(text: &str) -> String {
+    const ALLOWED: &[&str] = &[
+        "b", "i", "u", "s", "em", "strong", "a", "code", "pre", "blockquote", "tg-spoiler",
+        "tg-emoji",
+    ];
+
+    let mut result = String::with_capacity(text.len());
+    let bytes = text.as_bytes();
+    let mut i = 0;
+
+    while i < bytes.len() {
+        if bytes[i] == b'<' {
+            // Try to parse an HTML tag
+            if let Some(end) = text[i..].find('>') {
+                let tag_content = &text[i + 1..i + end]; // content between < and >
+                let tag_name = tag_content
+                    .trim_start_matches('/')
+                    .split(|c: char| c.is_whitespace() || c == '/' || c == '>')
+                    .next()
+                    .unwrap_or("")
+                    .to_lowercase();
+
+                if !tag_name.is_empty() && ALLOWED.contains(&tag_name.as_str()) {
+                    // Allowed tag — keep as-is
+                    result.push_str(&text[i..i + end + 1]);
+                } else {
+                    // Unknown tag — escape both brackets
+                    result.push_str("&lt;");
+                    result.push_str(&text[i + 1..i + end]);
+                    result.push_str("&gt;");
+                }
+                i += end + 1;
+            } else {
+                // No closing > — escape the lone <
+                result.push_str("&lt;");
+                i += 1;
+            }
+        } else {
+            result.push(text[i..].chars().next().unwrap());
+            i += text[i..].chars().next().unwrap().len_utf8();
+        }
+    }
+
+    result
 }
 
 #[cfg(test)]
